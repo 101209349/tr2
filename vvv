@@ -1,0 +1,343 @@
+#include "raylib.h"
+#include <vector>
+
+const int CELL_SIZE = 30;
+const int BOARD_WIDTH = 10;
+const int BOARD_HEIGHT = 20;
+
+
+
+class Tetromino {
+
+public:
+
+    std::vector<std::vector<int>> shape;
+
+    int x;
+    int y;
+
+    Tetromino(std::vector<std::vector<int>> s)
+    {
+        shape = s;
+        x = 3;
+        y = 0;
+    }
+
+    void Move(int dx, int dy)
+    {
+        x += dx;
+        y += dy;
+    }
+
+    void Rotate()
+    {
+
+        std::vector<std::vector<int>> temp = shape;
+
+        int n = shape.size();
+
+        for (int i = 0; i < n; i++)
+            for (int j = 0; j < n; j++)
+                shape[i][j] = temp[n - j - 1][i];
+    }
+
+};
+
+
+
+class Board {
+
+public:
+
+    int grid[BOARD_HEIGHT][BOARD_WIDTH];
+
+    Board()
+    {
+        for (int i = 0; i < BOARD_HEIGHT; i++)
+            for (int j = 0; j < BOARD_WIDTH; j++)
+                grid[i][j] = 0;
+    }
+
+
+    bool CheckCollision(Tetromino& t)
+    {
+
+        for (int i = 0; i < t.shape.size(); i++)
+            for (int j = 0; j < t.shape[i].size(); j++)
+            {
+
+                if (t.shape[i][j])
+                {
+
+                    int nx = t.x + j;
+                    int ny = t.y + i;
+
+                    if (nx < 0 || nx >= BOARD_WIDTH || ny >= BOARD_HEIGHT)
+                        return true;
+
+                    if (ny >= 0 && grid[ny][nx])
+                        return true;
+                }
+            }
+
+        return false;
+    }
+
+
+
+    void Merge(Tetromino& t)
+    {
+
+        for (int i = 0; i < t.shape.size(); i++)
+            for (int j = 0; j < t.shape[i].size(); j++)
+                if (t.shape[i][j])
+                    grid[t.y + i][t.x + j] = 1;
+
+    }
+
+
+
+    int ClearLines()
+    {
+
+        int lines = 0;
+
+        for (int i = BOARD_HEIGHT - 1; i >= 0; i--)
+        {
+
+            bool full = true;
+
+            for (int j = 0; j < BOARD_WIDTH; j++)
+                if (grid[i][j] == 0)
+                    full = false;
+
+            if (full)
+            {
+
+                lines++;
+
+                for (int k = i; k > 0; k--)
+                    for (int j = 0; j < BOARD_WIDTH; j++)
+                        grid[k][j] = grid[k - 1][j];
+
+                i++;
+            }
+        }
+
+        return lines;
+    }
+
+};
+
+
+
+class Game {
+
+private:
+
+    Board board;
+
+    Tetromino current;
+
+    int score;
+
+    bool gameOver;
+
+    std::vector<std::vector<std::vector<int>>> shapes;
+
+
+
+    Tetromino GetRandomPiece()
+    {
+        int r = GetRandomValue(0, shapes.size() - 1);
+
+        return Tetromino(shapes[r]);
+    }
+
+
+
+public:
+
+    Game() :
+        current({ {1,1},{1,1} })
+    {
+
+        score = 0;
+
+        gameOver = false;
+
+
+        shapes =
+        {
+
+            {{1,1,1,1}},
+
+            {{1,1},{1,1}},
+
+            {{0,1,0},{1,1,1}},
+
+            {{0,1,1},{1,1,0}},
+
+            {{1,1,0},{0,1,1}},
+
+            {{1,0,0},{1,1,1}},
+
+            {{0,0,1},{1,1,1}}
+
+        };
+
+        current = GetRandomPiece();
+    }
+
+
+
+    void Update()
+    {
+
+        if (gameOver) return;
+
+
+
+        if (IsKeyPressed(KEY_LEFT))
+        {
+            current.Move(-1, 0);
+
+            if (board.CheckCollision(current))
+                current.Move(1, 0);
+        }
+
+
+
+        if (IsKeyPressed(KEY_RIGHT))
+        {
+            current.Move(1, 0);
+
+            if (board.CheckCollision(current))
+                current.Move(-1, 0);
+        }
+
+
+
+        if (IsKeyPressed(KEY_UP))
+        {
+            current.Rotate();
+
+            if (board.CheckCollision(current))
+            {
+                current.Rotate();
+                current.Rotate();
+                current.Rotate();
+            }
+        }
+
+
+
+        if (IsKeyPressed(KEY_DOWN))
+        {
+            current.Move(0, 1);
+        }
+
+
+
+        current.Move(0, 1);
+
+
+
+        if (board.CheckCollision(current))
+        {
+
+            current.Move(0, -1);
+
+            board.Merge(current);
+
+            int lines = board.ClearLines();
+
+            score += lines * 100;
+
+            current = GetRandomPiece();
+
+
+
+            if (board.CheckCollision(current))
+                gameOver = true;
+        }
+    }
+
+
+
+    void Draw()
+    {
+
+        for (int i = 0; i < BOARD_HEIGHT; i++)
+            for (int j = 0; j < BOARD_WIDTH; j++)
+                if (board.grid[i][j])
+                    DrawRectangle(
+                        j * CELL_SIZE,
+                        i * CELL_SIZE,
+                        CELL_SIZE,
+                        CELL_SIZE,
+                        RED
+                    );
+
+
+
+        for (int i = 0; i < current.shape.size(); i++)
+            for (int j = 0; j < current.shape[i].size(); j++)
+                if (current.shape[i][j])
+                    DrawRectangle(
+                        (current.x + j) * CELL_SIZE,
+                        (current.y + i) * CELL_SIZE,
+                        CELL_SIZE,
+                        CELL_SIZE,
+                        BLUE
+                    );
+
+
+
+        DrawText(TextFormat("Score : %i", score), 320, 50, 20, WHITE);
+
+
+
+        if (gameOver)
+            DrawText("GAME OVER", 320, 100, 20, RED);
+
+    }
+
+};
+
+
+
+
+int main()
+{
+
+    InitWindow(500, 600, "Tetris C++ Class");
+
+    SetTargetFPS(10);
+
+    Game game;
+
+
+
+    while (!WindowShouldClose())
+    {
+
+        game.Update();
+
+
+
+        BeginDrawing();
+
+        ClearBackground(BLACK);
+
+        game.Draw();
+
+        EndDrawing();
+
+    }
+
+
+
+    CloseWindow();
+
+}
